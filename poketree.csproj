@@ -49,5 +49,11 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Pokebase\Pokebase.csproj">
+      <Project>{27A70DF6-0675-4E89-97A9-9BF320D1B6F5}</Project>
+      <Name>Pokebase</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

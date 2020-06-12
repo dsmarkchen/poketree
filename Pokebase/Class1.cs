@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,17 +31,17 @@ namespace Pokebase
             set;
         }
 
-        public Type [] Types
+        public Type[] Types
         {
             get;
             set;
         }
     }
-    public  class Type
+    public class Type
     {
-        public ENType ENType { get; set; }
+        public PokeType PokeType { get; set; }
     }
-    public enum ENType
+    public enum PokeType
     {
         normal,
         grass,
@@ -47,6 +49,8 @@ namespace Pokebase
         fire,
         ground,
         dragon,
+        flying,
+        ice,
         electric,
         dark,
         fairy,
@@ -69,22 +73,22 @@ namespace Pokebase
 
     public class Move
     {
-        public string ID { get ; private set; }
+        public string ID { get; private set; }
 
-        public string Name { 
+        public string Name {
             get {
                 var names = ID.Split('_');
                 StringBuilder sb = new StringBuilder();
-                foreach(var name in names)
+                foreach (var name in names)
                 {
                     sb.Append(name.First() + name.Substring(1).ToLower());
                     sb.Append(' ');
                 }
-                return sb.ToString().Trim(' '); 
-            } 
+                return sb.ToString().Trim(' ');
+            }
         }
 
-        public ENType Type { get; private set; }
+        public PokeType Type { get; private set; }
 
         public int Power { get; set; }
         public int Energy { get; set; }
@@ -92,9 +96,9 @@ namespace Pokebase
         public int EnergyGain { get; set; }
         public int Cooldown { get; set; }
 
-        public Move(string name, ENType type)
+        public Move(string name, PokeType type)
         {
-            ID = name.ToUpper().Replace(' ', '_');            
+            ID = name.ToUpper().Replace(' ', '_');
             Type = type;
         }
     }
@@ -137,13 +141,13 @@ namespace Pokebase
         public int StatsDefense { get; private set; }
         public int StatsHP { get; private set; }
 
-        public int CP { 
+        public int CP {
             get
             {
                 return calculateCP();
-            }            
+            }
         }
-        
+
 
         public float RealAttack
         {
@@ -177,32 +181,142 @@ namespace Pokebase
         private int calculateCP() {
             var cpm = getCpm(Level);
             _atk = cpm * (Attack + StatsAttack);
-            _def = cpm *(Defense + StatsDefense);
-            _hp = cpm *(HP + StatsHP);
-            var cp = (int)Math.Floor((Attack + StatsAttack) * Math.Pow((Defense + StatsDefense), 0.5) * Math.Pow((HP + StatsHP), 0.5) * Math.Pow(cpm, 2) /10);
+            _def = cpm * (Defense + StatsDefense);
+            _hp = cpm * (HP + StatsHP);
+            var cp = (int)Math.Floor((Attack + StatsAttack) * Math.Pow((Defense + StatsDefense), 0.5) * Math.Pow((HP + StatsHP), 0.5) * Math.Pow(cpm, 2) / 10);
             if (cp < 10) cp = 10;
             return cp;
         }
 
         private float getCpm(float level)
-        {            
-            if(level <= 40)
-              return (float) _modifier[(int)((level - 1) * 2)];
+        {
+            if (level <= 40)
+                return (float)_modifier[(int)((level - 1) * 2)];
             else
             {
                 var cfm40 = _modifier[(int)((40 - 1) * 2)];
                 var cfm41 = 0.7953;
                 var cfm40_5 = cfm40 + (cfm41 - cfm40) * 0.5;
-                if(level == 41)
+                if (level == 41)
                     return (float)cfm41;
-                if(level == 40.5f)
+                if (level == 40.5f)
                 {
-                    return (float) cfm40_5;
+                    return (float)cfm40_5;
                 }
                 return (float)cfm40;
 
             }
         }
     }
-    
+
+
+    public class PokeContainer
+    {
+        private string jsonFile = "gamemaster.json";
+        private List<Move> _moves= new List<Move> ();
+        private List<Poke> _pokes = new List<Poke>();
+        public PokeContainer()
+        {
+        }
+        public void run(string text)
+        {
+            _moves = JSONParseMove(text);
+            _pokes = JSONParsePoke(text);
+
+        }
+
+        public int getCP(string name, int iv_atk, int iv_def, int iv_hp, float level)
+        {
+            Poke foundPoke = null;
+            foreach(var poke in _pokes)
+            {
+                if(poke.Name == name)
+                {
+                    foundPoke = poke;
+                    break;
+                }
+                
+            }
+            if (foundPoke == null) throw new Exception("not found");
+
+            IV iv = foundPoke.IV;
+            iv.Attack = iv_atk;
+            iv.Defense = iv_def;
+            iv.HP = iv_hp;
+            iv.Level = level;
+            var cp = iv.CP;
+            return cp;
+
+        }
+
+        PokeType convertPokeTypeFromString(string typeName)
+        {
+            PokeType pokeType = PokeType.normal;
+            switch(typeName)
+            {
+                case "dark":
+                    pokeType = PokeType.dark;
+                    break;
+                case "flying":
+                    pokeType = PokeType.flying;
+                    break;
+
+                case "water":
+                    pokeType = PokeType.water;
+                    break;
+                case "ground":
+                    pokeType = PokeType.ground;
+                    break;
+
+                case "fire":
+                    pokeType = PokeType.fire;
+                    break;
+                case "ice":
+                    pokeType = PokeType.ice;
+                    break;
+            }
+            return pokeType;
+        }
+
+        public List<Move> JSONParseMove(string jsonText)
+        {
+            JObject jResults = JObject.Parse(jsonText);
+            List<Move> counties = new List<Move>();
+            foreach (var county in jResults["moves"])
+            {
+                var name = (string)county["name"];
+                var type = (string)county["type"];
+                var poktype = convertPokeTypeFromString(type);
+                Move move = new Move(name, poktype);
+                move.Power = int.Parse((string)county["power"]);
+                move.Cooldown = int.Parse((string)county["cooldown"]);
+                move.Energy = int.Parse((string)county["energy"]);
+                move.EnergyGain = int.Parse((string)county["energyGain"]);
+
+                counties.Add(move);
+            }
+            return counties;
+        }
+        public List<Poke> JSONParsePoke(string jsonText)
+        {
+            JObject jResults = JObject.Parse(jsonText);
+            List<Poke> counties = new List<Poke>();
+            foreach (var county in jResults["pokemon"])
+            {
+                var name = (string)county["speciesName"];
+                var stats = county["baseStats"];
+                var atk =  int.Parse((string) stats["atk"]);
+                var def = int.Parse((string)stats["def"]);
+                var hp = int.Parse((string)stats["hp"]);
+                Poke move = new Poke ();
+                move.Name = name;
+                IV iv = new IV(atk, def, hp);
+                move.IV = iv;
+                
+
+                counties.Add(move);
+            }
+            return counties;
+        }
+    }
 }
